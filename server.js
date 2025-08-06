@@ -8,7 +8,10 @@ const redirectURI = "http://127.0.0.1:5500";
 
 const naverClientId = process.env.NAVER_CLIENT_ID;
 const naverClientSecret = process.env.NAVER_CLIENT_SECRET;
-const naverSecret = "it_is_me";
+const naverSecret = "confirmed";
+
+const googleClientId = process.env.GOOGLE_CLIENT_ID;
+const googleClientSecret = process.env.GOOGLE_CLIENT_SECRET;
 
 const app = express();
 
@@ -96,7 +99,58 @@ app.delete("/naver/logout", (req, res) => {
     .then((response) => res.send("로그아웃 성공"));
 });
 
-app.listen(3000, () => console.log("서버 열림!"));
+app.post("/google/login", (req, res) => {
+  const authorizationCode = req.body.authorizationCode;
+  axios
+    .post(
+      "https://oauth2.googleapis.com/token",
+      {
+        client_id: googleClientId,
+        client_secret: googleClientSecret,
+        code: authorizationCode,
+        grant_type: "authorization_code",
+        redirect_uri: redirectURI,
+      },
+      {
+        headers: {
+          "Content-Type": "application/x-www-form-urlencoded",
+        },
+      }
+    )
+    .then((response) => {
+      res.send(response.data.access_token);
+    })
+    .catch((error) => {
+      console.error(error);
+      res.status(500).send("Google login failed");
+    });
+});
+
+app.post("/google/userinfo", (req, res) => {
+  const { googleAccessToken } = req.body;
+  axios
+    .get("https://www.googleapis.com/oauth2/v2/userinfo", {
+      headers: {
+        Authorization: `Bearer ${googleAccessToken}`,
+      },
+    })
+    .then((response) => res.json(response.data))
+    .catch((error) => {
+      console.error(error);
+      res.status(500).send("Failed to fetch Google user info");
+    });
+});
+
+app.delete("/google/logout", (req, res) => {
+  const { googleAccessToken } = req.body;
+  axios
+    .post(`https://oauth2.googleapis.com/revoke?token=${googleAccessToken}`)
+    .then((response) => res.send("로그아웃 성공"))
+    .catch((error) => {
+      console.error(error);
+      res.status(500).send("Google logout failed");
+    });
+});
 
 app.get("/client-ids", (req, res) => {
   res.json({
@@ -104,5 +158,9 @@ app.get("/client-ids", (req, res) => {
     naverClientId: naverClientId,
     naverSecret: naverSecret,
     naverClientSecret: naverClientSecret,
+    googleClientId: googleClientId,
+    googleClientSecret: googleClientSecret,
   });
 });
+
+app.listen(3000, () => console.log("서버 열림!"));
